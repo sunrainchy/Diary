@@ -1,0 +1,3 @@
+In bash, use Ctrl-W to kill the last word.
+To convert HTML to text: lynx -dump -stdin
+python -m SimpleHTTPServer
