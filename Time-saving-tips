@@ -4,3 +4,6 @@ python -m SimpleHTTPServer
 
 Look up how many connection in TIME_WAIT status
 ss -ant | awk 'NR>1 {++s[$1]} END {for(k in s) print k,s[k]}'
+
+Delete all chinese words
+tr -d $'\x80-\xff'
