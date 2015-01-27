@@ -7,3 +7,13 @@ ss -ant | awk 'NR>1 {++s[$1]} END {for(k in s) print k,s[k]}'
 
 Delete all chinese words
 tr -d $'\x80-\xff'
+
+
+GDB debug python
+$ gdb python
+...
+(gdb) run <programname>.py <arguments>
+
+
+top 文本模式输出: -b
+top -p 29154 -d 1 -n 1 -b > ans
