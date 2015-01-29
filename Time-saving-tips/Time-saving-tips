@@ -1,6 +1,7 @@
 In bash, use Ctrl-W to kill the last word.
 To convert HTML to text: lynx -dump -stdin
-python -m SimpleHTTPServer
+
+python -m SimpleHTTPServer 8080
 
 Look up how many connection in TIME_WAIT status
 ss -ant | awk 'NR>1 {++s[$1]} END {for(k in s) print k,s[k]}'
@@ -17,3 +18,5 @@ $ gdb python
 
 top 文本模式输出: -b
 top -p 29154 -d 1 -n 1 -b > ans
+
+

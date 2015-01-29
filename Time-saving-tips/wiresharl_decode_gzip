@@ -1,0 +1,10 @@
+
+4
+I believe Jaap's answer is not quite correct, because the exported object will already be uncompressed. Since there seems to be some confusion, here are some more explicit steps that should hopefully work for you:
+
+Find the gzipped object of interest and right-click on the corresponding packet in the packet list, selecting, "Follow TCP Stream" to isolate the stream.
+Within the "Follow TCP Stream" window, note the name of the gzipped object in the previous GET block.
+From the main window, choose File -> Export Objects -> HTTP.
+Select the object. The packet number should match the packet number you discovered in step 1, and the Filename should match the name seen in step 2. Note that the content type that appears is the uncompressed content type, so e.g., text/html, and not gzip.
+Choose Save As, then Save. This will be the uncompressed object.
+Note that you don't necessarily need to do "Follow TCP Stream" as long as you know the packet number and object name of the object of interest, or if you simply want to export all objects.
