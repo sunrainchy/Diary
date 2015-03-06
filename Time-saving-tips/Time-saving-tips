@@ -19,4 +19,8 @@ $ gdb python
 top 文本模式输出: -b
 top -p 29154 -d 1 -n 1 -b > ans
 
+Linux"figlet"命令
+Linux "toilet"命令
 
+
+toilet -f mono12 -F metal  Happy Gi #rl\'s Day
